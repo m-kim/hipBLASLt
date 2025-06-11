@@ -2,7 +2,7 @@
 
 import argparse
 import origami
-
+import yaml
 
 def parseArguments():
     parser = argparse.ArgumentParser(description="""Test Origami.""")
@@ -16,6 +16,11 @@ def parseArguments():
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--print", action="store_true")
     parser.add_argument("--wgm", type=int, default=6)
+    parser.add_argument(
+        "--hipblaslt_bench_yaml",
+        default=None,
+        help="Read hipblaslt-bench yaml file"
+    )
 
     return parser.parse_args()
 
@@ -205,31 +210,42 @@ tile_list = [
 
 def main():
     args = parseArguments()
+    shapes = []
+    with open(args.hipblaslt_bench_yaml, 'r') as library_logic_file:
+        benchmarks = yaml.safe_load(library_logic_file)
+        print("Loading... " + args.hipblaslt_bench_yaml)
+        for benchmark in benchmarks:
+            shapes.append((benchmark['M'], benchmark['N'], benchmark['K'], benchmark['transA'] == 'T', benchmark['transB'] == 'T', benchmark['a_type'],benchmark['b_type'],benchmark['c_type']))
 
     hardware = origami.getHardwareForDevice(args.device)
 
     if args.print:
         hardware.print()
-
-    print(
-        origami.select_best_macro_tile_size(
-            args.m,
-            args.n,
-            args.k,
-            1,
-            args.transA,
-            args.transB,
-            hardware,
-            tile_list,
-            args.element_size * 8,
-            args.element_size * 8,
-            args.element_size * 8,
-            0,
-            0.8,
-            args.debug,
-            args.print,
-            args.wgm,
-        )
+    for shape in shapes:
+        if shape[5] == 'bf16_r' or shape[5] == 'bf16_r':
+            element_size = 2
+        else:
+            element_size = 4
+    
+        print(
+            origami.select_best_macro_tile_size(
+                shape[0],
+                shape[1],
+                shape[2],
+                1,
+                shape[3],
+                shape[4],
+                hardware,
+                tile_list,
+                element_size * 8,
+                element_size * 8,
+                element_size * 8,
+                0,
+                0.8,
+                args.debug,
+                args.print,
+                args.wgm,
+            )
     )
 
     if args.print:
